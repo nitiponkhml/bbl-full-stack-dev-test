@@ -192,10 +192,37 @@ Placeholder — to be resolved during frontend implementation.
 
 ---
 
-## Decision: Collection sharing (§3.3) — NOT YET DECIDED
+## Decision: Collection sharing (§3.3)
 
-Placeholder — to be resolved during implementation. The brief's spec:
-"Collections hold bookmarks. A user can delete a collection. A user
-may want to share a collection with someone else." This conflicts on
-its face with the app's core privacy invariant (§3) and requires an
-explicit, justified design choice rather than full implementation.
+**Context**: §3.3 says "A user may want to share a collection with
+someone else" — phrased as a soft/optional desire, not a numbered hard
+requirement, and stated immediately after the core invariant (§3): "a
+user must never see, edit, or learn of the existence of another user's
+data." Any sharing mechanism (named-user grants, share links, etc.)
+necessarily creates a controlled exception to that invariant, which
+changes it from absolute to conditional.
+
+**Decision**: Not implemented. The `Collection` and `Bookmark` schemas
+and all guard/query logic keep the invariant absolute — no cross-user
+read/write path exists, by construction, not by a feature flag.
+
+**Reasoning**:
+1. The invariant is stated as the project's core, non-negotiable
+   property. Introducing any sharing surface (even read-only) is a new
+   trust boundary needing its own threat model, ownership-transfer
+   semantics on delete, and test coverage — scope the brief doesn't ask
+   for explicitly ("may want to", vs. a numbered requirement like the
+   rest of §3).
+2. Implementing a half-considered sharing feature under time pressure
+   is a more likely source of a real privacy bug than declining to
+   build it and documenting why.
+3. If sharing were required, the two realistic designs are (a)
+   named-user grants via a join table
+   (`CollectionShare(collectionId, sharedWithOwnerId)`, read-only), or
+   (b) an unguessable share-link token on `Collection` (identity-blind,
+   read-only). Both are viable follow-ups; (b) fits this app's
+   identity-blindness invariant more closely, since it never exposes
+   one user's identity to another.
+
+**Outcome**: No schema changes for sharing in this pass. Revisit only
+if explicitly requested, with (b) as the preferred starting design.
