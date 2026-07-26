@@ -65,6 +65,29 @@
   willing to say "not fully resolved yet" instead of declaring victory
   on a plausible-looking file state.
 
+### 4. Diagnosing a subagent invocation failure instead of guessing
+- **What happened**: `.claude/agents/security-reviewer.md` defines a
+  project-specific subagent, referenced by name in `CLAUDE.md`'s
+  finishing-up rule. Invoking it by `subagent_type: "security-reviewer"`
+  failed: "Agent type 'security-reviewer' not found." Rather than
+  assuming the file was stale or mis-registered and guessing at a fix,
+  Claude Code read the tool's own error output, which listed a fixed
+  set of available agent types (`claude`, `claude-code-guide`,
+  `Explore`, `general-purpose`, `Plan`, `statusline-setup`) — evidence
+  that this environment's `Agent` tool doesn't source custom types
+  from `.claude/agents/*.md` at all, a harness limitation rather than
+  anything wrong with the file. It also checked git history
+  (`git log --follow`) to rule out a timing/staleness explanation
+  before settling on the harness-limitation diagnosis.
+- **Why it mattered**: Rather than silently falling back or declaring
+  the review "done" via some substitute, Claude Code ran the exact
+  same persona/checklist/output format from `security-reviewer.md`
+  verbatim through the `general-purpose` agent as a transparent
+  workaround, then explicitly flagged that the underlying registration
+  gap was still open and unresolved. The diagnosis was evidence-based
+  (actual tool error + git history), not a guess, and the limitation
+  was surfaced for a real fix rather than papered over.
+
 ## Where AI got it wrong
 
 ### 1. Docker base image version
@@ -85,9 +108,46 @@
 - **Fix**: Added `?name=` filter to `/collections` and a full status
   codes table (200/201/204/400/401/404).
 
+### 3. Imprecise "mostly PASS" summary of a security review
+- **What happened**: After running the security review, Claude Code
+  summarized one section as "Check 5 (error responses) + file-level
+  audit — mostly PASS." This conflated two different things: Check 5
+  itself was graded N/A on every file (no error-handling code exists
+  yet to grade), while a separate, ad-hoc "file-level audit" (secret
+  handling, Dockerfile hardening, dependency check — not part of the
+  official 5-point checklist) had 3 PASSes and 1 FAIL (Dockerfile
+  missing `USER node`). Averaging an N/A category together with a
+  distinct PASS/FAIL category as "mostly PASS" wasn't accurate to
+  either one.
+- **How I caught it**: Asked "why mostly PASS for Check 5" instead of
+  accepting the summary at face value.
+- **Finding**: Check 5 should have been reported as N/A (not gradable
+  yet), and the supplemental file audit reported on its own terms
+  (3 PASS, 1 FAIL), rather than blended into one vague label.
+- **Fix**: Claude Code re-stated the finding split cleanly: Check 5 —
+  N/A across the board; file-level audit — 3 PASS, 1 FAIL (Dockerfile
+  root user).
+
 ## Prompts — one that worked, one that needed correction
 
 **Worked**:
+"don't commit yet, I want to see how many table, and each table
+structure"
+
+This stopped the workflow at exactly the right point — after the
+Prisma migration was applied but before it was committed — and asked
+for a concrete, verifiable artifact (the actual tables/columns in the
+live database) instead of accepting a prose summary of
+`schema.prisma`. It forced a real `psql \dt` / `\d` query against the
+running Postgres container, so what got confirmed was the database's
+actual state, not the source file's stated intent — those can differ
+if a migration only partially applies or an old container is still
+running stale state.
+
+**Why it mattered**: matches the same empirical-over-asserted pattern
+as the `sub` claim verification in DECISIONS.md — checking that the
+migration file *says* the right thing is necessary but not sufficient
+proof that the database *has* the right thing.
 
 **Needed correction**:
 "is it possible to move superpower and ui ux pro max into project?"
