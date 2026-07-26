@@ -87,4 +87,31 @@
 
 ## Prompts — one that worked, one that needed correction
 
+**Worked**:
+
+**Needed correction**:
+"is it possible to move superpower and ui ux pro max into project?"
+
+This was ambiguous between two different meanings of "move into
+project": (a) scope/enable the plugin for this project via
+`.claude/settings.json` (still depends on the global `~/.claude` plugin
+cache to resolve), or (b) copy the actual skill files into the repo so
+it's fully standalone. Claude Code took the first reading — updating
+`enabledPlugins`/`extraKnownMarketplaces` — which looked done but still
+depended on my machine's global install.
+
+**Fix**:
+"what I told you before I mean also move file in not using from global in my PC"
+
+This worked because it named the concrete artifact ("file", not
+"plugin enabled") and explicitly ruled out the global-dependency
+reading ("not using from global in my PC"). Claude Code then vendored
+the actual skill files into `.claude/skills/`, added proper MIT
+attribution (THIRD_PARTY_NOTICES.md), and reverted settings.json to `{}`.
+
+**Lesson**: "Move X into the project" is ambiguous between
+config-level scoping and physically relocating files — for tooling
+that supports both a reference-based and a vendored mode, name which
+one explicitly.
+
 ## Cost/token awareness
