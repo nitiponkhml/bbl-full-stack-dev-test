@@ -1,0 +1,201 @@
+# DECISIONS.md
+
+ADR-style log of decisions made where the brief's spec was silent or
+ambiguous, and how AI tooling was steered toward each decision.
+
+---
+
+## Decision: Use of claude.ai during Phase 0 (pre-implementation research)
+
+**Context**: Before writing any code, I needed to understand OIDC/PKCE
+mechanics, Auth0 tenant capabilities, and evaluate the Bearer token
+trade-off (Access Token vs ID Token) that the brief deliberately left
+undecided.
+
+**What I did**:
+- Used Claude (claude.ai) — not an agentic coding session, no repo
+  access — as a conceptual research and reasoning partner to understand:
+  - OIDC discovery documents and JWKS (what they are, why they exist)
+  - PKCE flow mechanics (code_verifier / code_challenge / S256)
+  - JWT structure (header / payload / signature) and claim semantics
+    (sub, aud, iss, azp)
+  - Trade-offs between Access Token and ID Token as a Bearer credential
+- All verification was done manually by me, not delegated to AI:
+  - Inspected the Auth0 discovery document
+    (/.well-known/openid-configuration) via Postman
+  - Inspected JWKS (/.well-known/jwks.json) via Postman
+  - Logged in manually 3 separate times via browser (Authorization
+    Code + PKCE flow, constructed by hand) using the provided test user
+  - Exchanged authorization codes for tokens via Postman
+  - Decoded both Access Token and ID Token payloads/headers myself
+    (Python one-liner) to inspect real aud/sub/alg/kid values across
+    all 3 login sessions
+
+**Why disclosed this way**: The brief requires disclosing how AI was
+used, not just that it was used. claude.ai was used for conceptual
+understanding and trade-off analysis; it did not write any code, touch
+the repo, or perform the verification steps — those were done by hand
+against the real Auth0 tenant to ensure the evidence backing this
+decision is empirical, not AI-asserted.
+
+**Outcome**: See "Decision: Bearer Token Type" below — this research
+and manual verification directly informed that decision.
+
+---
+
+## Decision: Verifying `sub` claim stability (not just trusting AI's claim)
+
+**Context**: While analyzing the Access Token vs ID Token trade-off,
+claude.ai pointed out that the `sub` claim should be stable across
+logins (per OIDC spec) and could safely be used as the basis for
+`ownerId`.
+
+**What I did**: I did not accept this claim at face value. I manually
+tested it by logging in 3 separate times via browser (constructing the
+Authorization Code + PKCE flow by hand each time, generating a fresh
+code_verifier/code_challenge pair per attempt), exchanging each
+authorization code for tokens via Postman, and decoding the payloads
+myself (Python one-liner) to compare the `sub` value across all 3
+sessions.
+
+**Result**: `sub` (`auth0|62e089faea483987422db6cc`) was identical
+across all 3 logins, confirming it's safe to use as the `ownerId`
+foreign key. This was verified empirically against the real tenant,
+not assumed from AI's explanation or from reading the spec alone.
+
+---
+
+## Decision: Bearer Token Type
+
+**Decision**: Access Token (RS256, JWT) — not ID Token.
+
+**Reasoning**:
+1. `aud` claim: Access Token's `aud` resolves to
+   `https://bbl-candidate-test-api` (this backend's own identity,
+   requested via the `audience` parameter). ID Token's `aud` resolves
+   to the `client_id` (the frontend's identity) — meaning it is
+   intended for the client to consume, not for a resource server to
+   authorize against.
+2. `sub` claim is present and identical in both tokens, and verified
+   stable across 3 separate login sessions (see decision above). This
+   means `ownerId` can be safely derived from the Access Token's `sub`
+   claim without needing the ID Token at all.
+3. The backend (list/get collections and bookmarks) does not need any
+   PII — the ID Token's claims (email, name, picture) are irrelevant
+   to authorization decisions and are reserved for frontend UI display
+   only.
+4. The discovery document lists `HS256` as a supported ID Token signing
+   algorithm alongside `RS256`/`PS256`. Accepting ID Tokens as Bearer
+   credentials would risk algorithm-confusion issues if a token were
+   ever signed with the symmetric HS256 algorithm. Access Tokens
+   requested with an explicit `audience` are issued as RS256 JWTs
+   (verified empirically — see verification method below), avoiding
+   this risk entirely.
+
+**Verification method**: curl/Postman against the Auth0 discovery
+document and JWKS endpoint; 3 separate manual logins via browser
+(Authorization Code + PKCE flow); decoded and compared token payloads
+across all 3 sessions. See /transcripts/ for the process.
+
+---
+
+## Decision: Agent config path — `.claude/` vs `/.agent/`
+
+**Context**: The brief's suggested repo shape (§5) references a
+generic `/.agent/` folder for reusable agent capabilities.
+
+**Decision**: Used `.claude/commands/` instead, since this project uses
+Claude Code specifically, and `.claude/` is its native convention for
+custom slash commands.
+
+**Reasoning**: The brief explicitly says the repo shape is "roughly
+this shape" — not a literal path requirement — since different
+candidates may use different agent tools (Claude Code, Codex, Copilot,
+etc.), each with its own native config path. Using a real,
+functioning `.claude/commands/commit.md` provides genuine agent
+tooling (visible in every Claude Code session) rather than a
+decorative folder that matches the brief's wording but has no actual
+effect.
+
+---
+
+## Decision: Seed data for 2 users
+
+**Context**: §3.1 requires seed data for at least 2 distinct users, but
+the Auth0 test tenant provides only 1 real login-capable account
+(candidate@test.com).
+
+**Decision**: Seed a second user in the database with a synthetic
+`ownerId` (a fabricated `sub`-like string, not tied to a real Auth0
+login).
+
+**Reasoning**: The requirement's purpose is to prove the privacy
+invariant (a user must never see/edit/learn of another user's data) —
+this only requires that data exists under a different `ownerId` in the
+database, not that a second real login be possible. Automated tests
+use the real user's token to verify the synthetic user's data is never
+returned, exposed, or otherwise reachable.
+
+---
+
+## Decision: Node.js base image version for Docker
+
+**Context**: Building Dockerfiles for backend and frontend (optional
+bonus, §3.4).
+
+**Decision**: `node:24-alpine` (Active LTS as of July 2026).
+
+**Reasoning**: Node 24 is the current Active LTS line, receiving
+security patches through April 2028. Node 20 — initially suggested by
+claude.ai — reached end-of-life in April 2026 and is no longer safe to
+use as a base image. See AI_WORKFLOW.md ("Where AI got it wrong") for
+how this was caught.
+
+---
+
+## Decision: Frontend routing — landing page and auth entry point
+
+**Context**: §3.2 specifies exactly two required pages (/collections,
+/bookmarks) but doesn't mention how a user actually initiates login,
+since the Auth0 Universal Login form itself is hosted by Auth0, not
+built by this frontend. Without an entry point and a callback handler,
+the OIDC flow has nowhere to start or land in the UI.
+
+**Decision**:
+- `/` — a landing/decision point (not counted as a third "page" per
+  §3.2, since it has no application data or CRUD logic of its own).
+  If a valid, non-expired Access Token is present, redirect straight
+  to `/collections`. Otherwise, show a single "Sign in" button that
+  starts the Authorization Code + PKCE flow.
+- `/callback` — receives the authorization code from Auth0, exchanges
+  it for tokens, then redirects to `/collections`.
+- Both `/collections` and `/bookmarks` are wrapped in route protection:
+  unauthenticated access redirects back to `/`.
+
+**Reasoning**: This keeps the required page count at exactly 2 (per
+§3.2) while still providing a working entry point for the OIDC flow.
+Redirecting already-authenticated users straight to `/collections`
+avoids forcing a login step on every visit, matching how the token
+model (see "Bearer Token Type" above) is meant to work.
+
+---
+
+## Decision: Token storage location on the frontend — NOT YET DECIDED
+
+**Context**: The Access Token needs to persist somewhere between page
+loads so that a returning user with a still-valid token isn't forced
+to log in again (see landing page decision above). Options include
+in-memory (React state only), `localStorage`, or `sessionStorage`,
+each with different trade-offs between persistence and XSS exposure.
+
+Placeholder — to be resolved during frontend implementation.
+
+---
+
+## Decision: Collection sharing (§3.3) — NOT YET DECIDED
+
+Placeholder — to be resolved during implementation. The brief's spec:
+"Collections hold bookmarks. A user can delete a collection. A user
+may want to share a collection with someone else." This conflicts on
+its face with the app's core privacy invariant (§3) and requires an
+explicit, justified design choice rather than full implementation.
