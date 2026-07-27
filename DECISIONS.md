@@ -435,3 +435,51 @@ workflow section now requires scanning `/transcripts/` content for
 JWTs, `code_verifier`/`code_challenge` values, authorization codes,
 and `.env` contents before staging, to catch this category before it
 reaches a commit next time.
+
+---
+
+## Decision: Frontend PKCE implementation — hand-rolled vs `@auth0/auth0-spa-js`
+
+**Context**: The frontend needs to implement the Authorization Code +
+PKCE (S256) flow against Auth0 (per `CLAUDE.md`/`API_DESIGN.md` — no
+implicit flow). Two realistic paths: hand-roll the PKCE mechanics
+directly (Web Crypto for `code_verifier`/`code_challenge`, manual
+`fetch` calls to `/authorize` and `/oauth/token`), or use the official
+`@auth0/auth0-spa-js` SDK, which implements PKCE internally.
+
+**Decision**: Hand-rolled.
+
+**Reasoning**:
+1. `DECISIONS.md` already commits to `sessionStorage` for token
+   storage (see "Token storage location on the frontend"). auth0-spa-js's
+   built-in cache only supports `'memory'` or `'localstorage'` as a
+   `cacheLocation` — `sessionStorage` would require writing a custom
+   `ICache` adapter, at which point most of the SDK's storage-management
+   value is bypassed anyway, and the code ends up fighting the SDK's
+   assumptions instead of using them.
+2. The backend's JWT validation (JWKS/`iss`/`aud`/`exp`) was
+   deliberately implemented and tested by hand rather than delegated to
+   an opaque helper — hand-rolling the frontend's PKCE mechanics keeps
+   the same standard of understanding and controlling the
+   security-critical path across the stack, rather than delegating half
+   of it to a third-party SDK.
+3. Full control makes the security-sensitive pieces directly
+   unit-testable as pure functions: `code_verifier`/`code_challenge`
+   generation is verified against the RFC 7636 Appendix B test vector
+   with no SDK internals to mock.
+4. Trade-off accepted knowingly: the SDK is battle-tested and handles
+   concerns hand-rolled code must re-derive itself (silent refresh via
+   refresh tokens, spec-compliant retry/edge-case handling, browser
+   quirks). Given this project's scope (one test tenant, no
+   refresh-token rotation requirement), that trade-off was judged
+   acceptable.
+
+**Verification method**: TDD throughout — Vitest unit tests covering
+PKCE generation (RFC 7636 test vector), CSRF state-mismatch rejection,
+one-time-use cleanup of `state`/`code_verifier` on both success and
+failure paths, and the token-exchange request shape (mocked `fetch`,
+confirms no `client_secret` is ever sent). 35 tests passing.
+`/security-review` — CLEAR TO COMMIT, no CRITICAL/FAIL findings
+(commit `339c6c1`). End-to-end verification against the real Auth0
+tenant is still pending — route/page wiring (`/`, `/callback`) isn't
+built yet.
