@@ -11,3 +11,6 @@ coverage/
 
 # Claude Code local overrides (machine-specific, not shared via git)
 .claude/settings.local.json
+
+# Local planning scratch (not shared via git)
+plans/
