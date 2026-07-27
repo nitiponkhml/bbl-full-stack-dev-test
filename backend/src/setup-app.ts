@@ -2,6 +2,9 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 
 export function configureApp(app: INestApplication) {
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
