@@ -69,24 +69,27 @@
 - **What happened**: `.claude/agents/security-reviewer.md` defines a
   project-specific subagent, referenced by name in `CLAUDE.md`'s
   finishing-up rule. Invoking it by `subagent_type: "security-reviewer"`
-  failed: "Agent type 'security-reviewer' not found." Rather than
-  assuming the file was stale or mis-registered and guessing at a fix,
-  Claude Code read the tool's own error output, which listed a fixed
-  set of available agent types (`claude`, `claude-code-guide`,
-  `Explore`, `general-purpose`, `Plan`, `statusline-setup`) — evidence
-  that this environment's `Agent` tool doesn't source custom types
-  from `.claude/agents/*.md` at all, a harness limitation rather than
-  anything wrong with the file. It also checked git history
-  (`git log --follow`) to rule out a timing/staleness explanation
-  before settling on the harness-limitation diagnosis.
+  failed: "Agent type 'security-reviewer' not found." I first asked
+  Claude Code to restart the session in case this was a load-timing
+  issue — the error persisted identically. I then asked Claude
+  (claude.ai) for additional guidance; it researched the error and
+  identified this as a known, documented limitation: custom subagents
+  in `.claude/agents/` work via the Claude Code CLI but are not
+  resolvable as `subagent_type` values specifically in the **VS Code
+  extension's** Agent tool, which only recognizes a hardcoded set of
+  built-in types — confirmed by multiple public bug reports with the
+  identical error signature, including cases affecting official
+  Anthropic-authored plugins in the same environment.
 - **Why it mattered**: Rather than silently falling back or declaring
   the review "done" via some substitute, Claude Code ran the exact
   same persona/checklist/output format from `security-reviewer.md`
   verbatim through the `general-purpose` agent as a transparent
-  workaround, then explicitly flagged that the underlying registration
-  gap was still open and unresolved. The diagnosis was evidence-based
-  (actual tool error + git history), not a guess, and the limitation
-  was surfaced for a real fix rather than papered over.
+  workaround — confirmed (when I asked it to explain, for the
+  Collections CRUD review) to genuinely read the real project files
+  via its own file tools, not summarize from memory. The root cause
+  was pinned down to a specific, externally-documented tool limitation
+  rather than left as a guess, and the workaround was verified to
+  preserve the same review rigor rather than assumed to.
 
 ## Where AI got it wrong
 
