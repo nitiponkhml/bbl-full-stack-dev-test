@@ -312,3 +312,74 @@ creating a bookmark with a `collectionId` owned by the caller
 collection via `PUT`. Reviewed via the security-reviewer checklist —
 `assertCollectionOwned()` confirmed to run and reject *before* the
 create/update query executes, not check-then-ignore.
+
+---
+
+## Decision: Global validation — reject unknown fields, array error messages, protocol-required URLs
+
+**Context**: `class-validator` decorators already existed on the
+Collections/Bookmarks DTOs (added when each module was built), but
+nothing enforced them — no global `ValidationPipe` was registered, so
+a missing required field (e.g. `name`) fell through to Prisma and
+surfaced as a raw `500 Internal server error` instead of the `400`
+documented in `API_DESIGN.md`. Wiring up enforcement raised three
+sub-decisions that weren't specified anywhere:
+
+1. Should an unrecognized field in the request body (e.g. a
+   client-supplied `ownerId`, which every service already ignores at
+   the query layer) be silently stripped, or rejected outright?
+2. Should the `400` validation error `message` be Nest's default array
+   of per-field error strings, or a single joined string (closer to
+   the single-string style of `API_DESIGN.md`'s illustrative 404
+   example, which isn't itself a validation-error example)?
+3. `class-validator`'s default `@IsUrl()` (via `validator.js`) accepts
+   a bare host with no scheme (e.g. `example.com`) as "valid" —
+   arguably not what "malformed URL → 400" was meant to catch for a
+   bookmark, which needs a fully-qualified URL to actually be openable.
+
+**Decision**:
+1. **Reject with 400** (`whitelist: true, forbidNonWhitelisted: true`
+   on a global `ValidationPipe`) rather than silently stripping unknown
+   fields. This is a deliberate behavior change from what was manually
+   verified earlier in this project (a `PUT` with a spoofed `ownerId`
+   in the body previously succeeded with `200`, `ownerId` silently
+   ignored) — that request now returns `400` instead. Chosen over
+   silent stripping for defense in depth: failing loudly on
+   unrecognized fields is stricter and surfaces client bugs (or probe
+   attempts) rather than quietly swallowing them.
+2. **Array of per-field messages** (Nest's default `ValidationPipe`
+   behavior), e.g. `message: ["name should not be empty"]`. Kept the
+   standard behavior rather than writing custom string-joining logic,
+   since it's more useful to a client with multiple invalid fields at
+   once and still matches the documented `{statusCode, message, error}`
+   shape structurally.
+3. `@IsUrl({ require_protocol: true })` on both `CreateBookmarkDto` and
+   `UpdateBookmarkDto`'s `url` field, so a bare host without `http(s)`
+   is now rejected as malformed, not silently accepted.
+
+A global `AllExceptionsFilter` (`@Catch()`) was also added so that
+*every* error response — including uncaught/unexpected errors, which
+Nest's default handling returns as `{statusCode, message}` only, no
+`error` key — consistently has the exact three-key shape from
+`API_DESIGN.md`. `404`/`401` responses already matched this shape
+before via Nest's default `HttpException` handling (verified by
+pre-existing tests); this mainly closes the gap for `500`s.
+
+**Reasoning**: All three sub-decisions were asked and confirmed with
+the project owner (`AskUserQuestion`) rather than guessed silently,
+per this file's own process rule.
+
+**Verification method**: The gap was confirmed empirically before
+implementing anything (`POST /collections` with a missing `name`
+returned real `500`, captured via a throwaway test, deleted after).
+New e2e tests (2 in `collections.e2e-spec.ts`, 3 in
+`bookmarks.e2e-spec.ts`) were written first and confirmed failing, then
+implementation followed. The fix was proven causal, not coincidental,
+by temporarily reverting `configureApp()` to skip registering the
+`ValidationPipe` and re-running the new tests — all 5 failed
+(including the missing-`name` case reproducing the original `500`
+verbatim), then passed again once restored. Unit tests for
+`AllExceptionsFilter` (3 cases: `HttpException` passthrough, array-
+message `BadRequestException` passthrough, generic `Error` → sanitized
+`500`) cover the filter directly. Full suite: 47 e2e + 8 unit tests
+passing, clean build.
