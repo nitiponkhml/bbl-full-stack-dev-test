@@ -266,3 +266,49 @@ e2e suite (`auth.e2e-spec.ts`, `me.e2e-spec.ts`) re-run to confirm no
 regression in accept/reject behavior. Reviewed via the
 security-reviewer checklist — no CRITICAL/FAIL findings, log-content
 check confirmed line-by-line.
+
+---
+
+## Decision: Bookmark `collectionId` must reference the caller's own collection
+
+**Context**: `Bookmark.collectionId` is an optional, client-suppliable
+field (per `API_DESIGN.md`'s field table). `API_DESIGN.md` doesn't
+explicitly say what happens if a client supplies a `collectionId` that
+exists but belongs to a different owner, or doesn't exist at all.
+Since no read path leaks data either way (every bookmark/collection
+query is independently scoped by `ownerId`), this wasn't a privacy
+leak either way — but it was still an open question of what the
+correct behavior should be.
+
+**Decision**: On both `POST /bookmarks` and `PUT`/`PATCH
+/bookmarks/:id`, if `collectionId` is provided, the server validates
+that a `Collection` with that `id` exists **and** is owned by the
+caller (`ownerId` from the token). If not, the request is rejected
+with `404 Not Found` (`"Collection not found"`) — the same treatment
+as any other cross-owner or nonexistent resource reference in this
+API, not a `400` and not silent acceptance.
+
+**Reasoning**:
+1. Consistency with the project's established pattern: every other
+   cross-owner resource reference in this API (a `Collection` or
+   `Bookmark` `:id` that exists but isn't yours) returns 404, never
+   403 and never silent success. Treating `collectionId` differently
+   (accepting it uncritically) would be an inconsistent exception to
+   that pattern for no clear benefit.
+2. Silently accepting a foreign `collectionId` would let a bookmark
+   permanently reference a collection its owner has no visibility into
+   or control over (can't rename it, can't see it in `GET
+   /collections`, can't have it null itself out if that collection is
+   later deleted by its actual owner in a way the bookmark owner would
+   never learn of) — a confusing, effectively-orphaned data state, even
+   though it isn't an information-disclosure bug on its own.
+3. Asked once, confirmed with the project owner (AskUserQuestion),
+   rather than guessed silently, per this file's own process rule.
+
+**Verification method**: e2e tests in `bookmarks.e2e-spec.ts` cover:
+creating a bookmark with a `collectionId` owned by the caller
+(succeeds), owned by another user (404), and nonexistent (404); same
+404 behavior when moving an existing bookmark into another user's
+collection via `PUT`. Reviewed via the security-reviewer checklist —
+`assertCollectionOwned()` confirmed to run and reject *before* the
+create/update query executes, not check-then-ignore.
