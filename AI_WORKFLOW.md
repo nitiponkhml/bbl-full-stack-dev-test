@@ -17,6 +17,31 @@
 
 ## How the work was decomposed
 
+1. **Phase 0 — verification before implementation**: Before writing
+   any code, verified the Auth0 tenant's real capabilities (discovery
+   document, JWKS) and manually exercised the Authorization Code +
+   PKCE flow 3 times, rather than assuming standard OIDC behavior
+   applied as-is to this tenant.
+2. **Decisions logged before code**: Ambiguous points (Bearer token
+   type, seed data strategy, agent config path, collection sharing,
+   token storage) were decided and written to DECISIONS.md before
+   asking the agent to implement against them.
+3. **Repo scaffolding as its own step**: Folder structure, CLAUDE.md,
+   .claude/ tooling (commands, agents, skills) were set up before any
+   application code, so every subsequent session had consistent rules
+   to follow.
+4. **Backend before frontend**: Backend was built and tested in
+   dependency order — scaffold → Prisma schema → auth guard (TDD) →
+   /me → Collections CRUD → Bookmarks CRUD → global validation →
+   ownership checks → seed script — each committed separately after
+   its own tests passed and, for security-sensitive code, after
+   security-reviewer sign-off.
+5. **Frontend after backend was solid**: Frontend-specific open
+   decisions (token storage location) were deferred until this phase
+   started, rather than decided prematurely; PKCE was hand-rolled
+   rather than using an SDK, since the team already had working
+   knowledge of the mechanics from manual Phase 0 testing.
+
 ## Where AI did well
 
 ### 1. Catching empty-folder git tracking issue
@@ -178,3 +203,16 @@ that supports both a reference-based and a vendored mode, name which
 one explicitly.
 
 ## Cost/token awareness
+
+Token usage wasn't tracked precisely session-by-session. Qualitative
+observations:
+- Sessions involving file reads across many source files (e.g. the
+  Collections CRUD security review, which read every service/
+  controller/module file) used noticeably more context than
+  documentation-only sessions.
+- Long-running sessions were split into separate exported transcripts
+  (see /transcripts/) partly to keep individual sessions manageable
+  rather than one continuously growing context.
+- No cost-optimization techniques (e.g. prompt caching, model
+  downgrades for simple tasks) were deliberately applied — Sonnet 5
+  was used throughout for consistency.
