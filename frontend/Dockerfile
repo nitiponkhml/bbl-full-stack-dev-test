@@ -5,6 +5,21 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+
+# Vite inlines VITE_* vars into the JS bundle at build time, not at
+# container runtime like the backend's env vars — they must arrive as
+# build args, not an `environment:` block in docker-compose.yml.
+ARG VITE_AUTH0_DOMAIN
+ARG VITE_AUTH0_CLIENT_ID
+ARG VITE_AUTH0_REDIRECT_URI
+ARG VITE_AUTH0_AUDIENCE
+ARG VITE_API_BASE_URL
+ENV VITE_AUTH0_DOMAIN=$VITE_AUTH0_DOMAIN \
+    VITE_AUTH0_CLIENT_ID=$VITE_AUTH0_CLIENT_ID \
+    VITE_AUTH0_REDIRECT_URI=$VITE_AUTH0_REDIRECT_URI \
+    VITE_AUTH0_AUDIENCE=$VITE_AUTH0_AUDIENCE \
+    VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 RUN npm run build
 
 FROM node:24-alpine AS runner
