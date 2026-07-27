@@ -121,6 +121,67 @@ Full reasoning and the two candidate designs for a future pass
 
 ## Where the agent's first attempt was wrong
 
-*(To be filled in during implementation — not fabricated in advance.
-This section will document real instances found via testing, per
-§5's requirement to disclose 2-3 concrete cases.)*
+### 1. Incorrect assumption about CORS header behavior in a test
+
+- **What happened**: The first `cors.e2e-spec.ts` test for a
+  third-party origin asserted
+  `access-control-allow-origin` would be `undefined` on a request from
+  `http://evil.example.com`, on the assumption that a disallowed
+  origin gets no header at all.
+- **How I caught it**: Ran the test immediately after implementing
+  CORS (TDD) — it failed, showing the header was present and equal to
+  `http://localhost:3000`, not absent.
+- **Finding**: With a single fixed-string `origin` config (not a
+  wildcard or a reflect-the-request-origin function), the `cors`
+  package always returns that one literal value on every response,
+  regardless of the incoming `Origin` header — it never omits the
+  header. The actual security property isn't "no header for bad
+  origins," it's "the header can never be made to equal an arbitrary
+  origin" — the browser at the disallowed origin rejects the response
+  itself because the header doesn't match its own origin.
+- **Fix**: Corrected the test to assert the header is present but
+  fixed (`toBe('http://localhost:3000')`) and explicitly `not.toBe`
+  the disallowed origin, with a comment explaining why. Verified via
+  `/security-review`, which independently confirmed this is the
+  correct, secure behavior for a single-origin config.
+
+### 2. Missing error handling on every create/edit/delete mutation
+
+- **What happened**: `Collections.tsx`/`Bookmarks.tsx`'s `save()` and
+  `confirmDelete()` functions (and a `collections`-dropdown-loading
+  effect in `Bookmarks.tsx`) chained `.then()` with no `.catch()` at
+  all. A failed create/edit/delete left the dialog silently open with
+  zero user feedback, and was a genuine unhandled promise rejection.
+- **How I caught it**: `App.test.tsx`'s unmocked `apiClient` call
+  happened to hit a real backend instance reachable at
+  `localhost:3001` during a test run, which correctly rejected the
+  test's fake (unsigned) JWT with a real `401` — surfacing the
+  unhandled rejection in Vitest's output. Not something a mocked unit
+  test would have caught on its own.
+- **Finding**: All four mutation call sites across both pages had the
+  same gap — a defect class, not an isolated typo.
+- **Fix**: Wrote a failing regression test per call site first (TDD),
+  then added `.catch((err) => setError(...))` reusing the existing
+  error `Alert`, and a deliberately silent `.catch(() => {})` on the
+  non-critical dropdown-loading effect. `/security-review` confirmed
+  the new error messages don't leak anything beyond the already-vetted
+  `ApiError` shape.
+
+### 3. Installed a jsdom version that silently broke MUI Dialog tests
+
+- **What happened**: `npm install -D vitest jsdom ...` pulled jsdom
+  `30.0.0` (latest at install time). The first tests exercising an MUI
+  `Dialog` (create/edit/delete confirmation) failed with an internal
+  jsdom error (`resolveLengthInPixels`, `object null is not
+  iterable`), not a test-logic error.
+- **How I caught it**: Traced the failure to jsdom's CSS `calc()`/
+  font-size resolution helper by reading the stack trace instead of
+  assuming the test or component code was wrong, then bisected by
+  downgrading jsdom to `26.1.0` and re-running — same suite, all
+  green.
+- **Finding**: jsdom 30.0.0 has a real CSS-calc/font-size resolution
+  bug incompatible with MUI v9's `Dialog`; unrelated to any code in
+  this project.
+- **Fix**: Pinned `jsdom` to `^26.1.0` in `frontend/package.json`,
+  documented the reason in the commit message so it isn't silently
+  bumped back to a broken version later.
