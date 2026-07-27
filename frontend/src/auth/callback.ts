@@ -47,23 +47,32 @@ export async function handleAuthCallback(
     );
   }
 
-  const response = await fetch(`https://${config.domain}/oauth/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      client_id: config.clientId,
-      code,
-      redirect_uri: config.redirectUri,
-      code_verifier: storedVerifier,
-    }),
-  });
+  let data: { access_token: string; id_token: string };
+  try {
+    const response = await fetch(`https://${config.domain}/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: config.clientId,
+        code,
+        redirect_uri: config.redirectUri,
+        code_verifier: storedVerifier,
+      }),
+    });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      throw new AuthCallbackError('Auth0 token exchange failed');
+    }
+
+    data = await response.json();
+  } catch (err) {
+    if (err instanceof AuthCallbackError) {
+      throw err;
+    }
     throw new AuthCallbackError('Auth0 token exchange failed');
   }
 
-  const data = await response.json();
   setAccessToken(data.access_token);
   setIdToken(data.id_token);
 }

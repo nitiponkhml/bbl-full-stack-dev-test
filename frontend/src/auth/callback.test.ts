@@ -179,4 +179,45 @@ describe('handleAuthCallback — success path', () => {
     expect(getAccessToken()).toBeNull();
     expect(getIdToken()).toBeNull();
   });
+
+  it('wraps a network-level fetch failure into a generic AuthCallbackError (no raw browser error leaked)', async () => {
+    savePkceParams('the-real-state', 'the-verifier');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+    );
+    const params = new URLSearchParams({
+      code: 'auth-code',
+      state: 'the-real-state',
+    });
+
+    let caught: unknown;
+    try {
+      await handleAuthCallback(config, params);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(AuthCallbackError);
+    expect((caught as Error).message).not.toBe('Failed to fetch');
+  });
+
+  it('wraps a response.json() parse failure into a generic AuthCallbackError', async () => {
+    savePkceParams('the-real-state', 'the-verifier');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.reject(new SyntaxError('Unexpected token in JSON')),
+      }),
+    );
+    const params = new URLSearchParams({
+      code: 'auth-code',
+      state: 'the-real-state',
+    });
+
+    await expect(handleAuthCallback(config, params)).rejects.toThrow(
+      AuthCallbackError,
+    );
+  });
 });
