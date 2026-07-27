@@ -100,6 +100,27 @@ describe('Collections — create', () => {
       expect(screen.getByText('Reading')).toBeInTheDocument(),
     );
   });
+
+  it('shows an error and keeps the dialog open when creating fails', async () => {
+    apiClientMock.get.mockResolvedValue([]);
+    apiClientMock.post.mockRejectedValue(new Error('Name already taken'));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText(/no collections yet/i)).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /new collection/i }));
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: 'Reading' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Name already taken')).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
+  });
 });
 
 describe('Collections — edit', () => {
@@ -164,6 +185,24 @@ describe('Collections — delete', () => {
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
 
     expect(apiClientMock.delete).not.toHaveBeenCalled();
+    expect(screen.getByText('Reading')).toBeInTheDocument();
+  });
+
+  it('shows an error when deleting fails', async () => {
+    apiClientMock.get.mockResolvedValue([collection()]);
+    apiClientMock.delete.mockRejectedValue(new Error('Delete failed'));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText('Reading')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /delete reading/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete failed')).toBeInTheDocument(),
+    );
     expect(screen.getByText('Reading')).toBeInTheDocument();
   });
 });

@@ -92,6 +92,34 @@ describe('Bookmarks — loading', () => {
       ),
     );
   });
+
+  it('does not crash or leave an unhandled rejection when the collections dropdown fails to load', async () => {
+    const nodeProcess = (
+      globalThis as unknown as {
+        process: {
+          on: (event: string, listener: (reason: unknown) => void) => void;
+          off: (event: string, listener: (reason: unknown) => void) => void;
+        };
+      }
+    ).process;
+    const unhandled = vi.fn();
+    nodeProcess.on('unhandledRejection', unhandled);
+
+    apiClientMock.get.mockImplementation((path: string) =>
+      path.startsWith('/collections')
+        ? Promise.reject(new Error('collections down'))
+        : Promise.resolve([]),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText(/no bookmarks yet/i)).toBeInTheDocument(),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(unhandled).not.toHaveBeenCalled();
+    nodeProcess.off('unhandledRejection', unhandled);
+  });
 });
 
 describe('Bookmarks — create', () => {
@@ -129,6 +157,34 @@ describe('Bookmarks — create', () => {
     await waitFor(() =>
       expect(screen.getByText('Example')).toBeInTheDocument(),
     );
+  });
+
+  it('shows an error and keeps the dialog open when creating fails', async () => {
+    apiClientMock.get.mockImplementation((path: string) =>
+      path.startsWith('/collections')
+        ? Promise.resolve([])
+        : Promise.resolve([]),
+    );
+    apiClientMock.post.mockRejectedValue(new Error('Bad URL'));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText(/no bookmarks yet/i)).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /new bookmark/i }));
+    fireEvent.change(screen.getByLabelText(/^url$/i), {
+      target: { value: 'not-a-url' },
+    });
+    fireEvent.change(screen.getByLabelText(/^title$/i), {
+      target: { value: 'Example' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Bad URL')).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
   });
 });
 
@@ -207,6 +263,28 @@ describe('Bookmarks — delete', () => {
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
 
     expect(apiClientMock.delete).not.toHaveBeenCalled();
+    expect(screen.getByText('Example')).toBeInTheDocument();
+  });
+
+  it('shows an error when deleting fails', async () => {
+    apiClientMock.get.mockImplementation((path: string) =>
+      path.startsWith('/collections')
+        ? Promise.resolve([])
+        : Promise.resolve([bookmark()]),
+    );
+    apiClientMock.delete.mockRejectedValue(new Error('Delete failed'));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText('Example')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /delete example/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete failed')).toBeInTheDocument(),
+    );
     expect(screen.getByText('Example')).toBeInTheDocument();
   });
 });

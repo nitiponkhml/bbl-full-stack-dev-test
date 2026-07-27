@@ -24,8 +24,6 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { apiClient } from '../api/client';
 import type { Bookmark, Collection } from '../api/types';
-import { getAuth0Config } from '../auth/config';
-import { logout } from '../auth/logout';
 
 const UNCATEGORISED = '';
 
@@ -48,7 +46,12 @@ export function Bookmarks(): ReactElement {
   const [deleteTarget, setDeleteTarget] = useState<Bookmark | null>(null);
 
   useEffect(() => {
-    apiClient.get<Collection[]>('/collections').then(setCollections);
+    // Best-effort: a failure here only means the collection filter/picker
+    // shows no options — not worth surfacing as a page-level error.
+    apiClient
+      .get<Collection[]>('/collections')
+      .then(setCollections)
+      .catch(() => {});
   }, []);
 
   function load() {
@@ -105,39 +108,36 @@ export function Bookmarks(): ReactElement {
       ? apiClient.patch(`/bookmarks/${editTarget.id}`, payload)
       : apiClient.post('/bookmarks', payload);
 
-    request.then(() => {
-      closeDialog();
-      load();
-    });
+    request
+      .then(() => {
+        closeDialog();
+        load();
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : 'Save failed'),
+      );
   }
 
   function confirmDelete() {
     if (!deleteTarget) {
       return;
     }
-    apiClient.delete(`/bookmarks/${deleteTarget.id}`).then(() => {
-      setDeleteTarget(null);
-      load();
-    });
+    apiClient
+      .delete(`/bookmarks/${deleteTarget.id}`)
+      .then(() => {
+        setDeleteTarget(null);
+        load();
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : 'Delete failed'),
+      );
   }
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 3,
-        }}
-      >
-        <Typography variant="h4" component="h1">
-          Bookmarks
-        </Typography>
-        <Button variant="outlined" onClick={() => logout(getAuth0Config())}>
-          Sign out
-        </Button>
-      </Box>
+    <Container maxWidth="sm" sx={{ mt: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Bookmarks
+      </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
         <Button variant="contained" onClick={openCreate}>

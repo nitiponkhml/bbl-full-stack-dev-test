@@ -2,7 +2,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import {
   Alert,
-  Box,
   Button,
   Container,
   Dialog,
@@ -22,8 +21,6 @@ import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import { apiClient } from '../api/client';
 import type { Collection } from '../api/types';
-import { getAuth0Config } from '../auth/config';
-import { logout } from '../auth/logout';
 
 export function Collections(): ReactElement {
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -75,39 +72,36 @@ export function Collections(): ReactElement {
       ? apiClient.patch(`/collections/${editTarget.id}`, { name: nameInput })
       : apiClient.post('/collections', { name: nameInput });
 
-    request.then(() => {
-      closeDialog();
-      load();
-    });
+    request
+      .then(() => {
+        closeDialog();
+        load();
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : 'Save failed'),
+      );
   }
 
   function confirmDelete() {
     if (!deleteTarget) {
       return;
     }
-    apiClient.delete(`/collections/${deleteTarget.id}`).then(() => {
-      setDeleteTarget(null);
-      load();
-    });
+    apiClient
+      .delete(`/collections/${deleteTarget.id}`)
+      .then(() => {
+        setDeleteTarget(null);
+        load();
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : 'Delete failed'),
+      );
   }
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 3,
-        }}
-      >
-        <Typography variant="h4" component="h1">
-          Collections
-        </Typography>
-        <Button variant="outlined" onClick={() => logout(getAuth0Config())}>
-          Sign out
-        </Button>
-      </Box>
+    <Container maxWidth="sm" sx={{ mt: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Collections
+      </Typography>
 
       <Button variant="contained" onClick={openCreate} sx={{ mb: 2 }}>
         New collection
