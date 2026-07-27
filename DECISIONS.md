@@ -226,3 +226,43 @@ read/write path exists, by construction, not by a feature flag.
 
 **Outcome**: No schema changes for sharing in this pass. Revisit only
 if explicitly requested, with (b) as the preferred starting design.
+
+---
+
+## Decision: Auth guard success/failure logging — no claim/error detail in log lines
+
+**Context**: After adding the `GET /me` endpoint, the request was to
+add server-side visibility into whether requests were authenticating
+or not (distinct from the response body, which already has a
+regression test proving it never leaks `jwt`/`expired`/`signature`
+details — see the auth guard's e2e tests).
+
+**Decision**: `JwtAuthGuard.handleRequest()` logs exactly one of two
+fixed strings — `"Auth success"` or `"Auth failed"` — with no
+interpolated values: no `sub`, no token, no `err`/`info` reason, no
+stack trace. The actual accept/reject decision is unchanged, still
+delegated to `AuthGuard`'s default `handleRequest()` via `super.call`.
+
+**Reasoning**:
+1. The `sub` claim, while not a secret, is still a per-user identifier;
+   logging it on every request unnecessarily widens what a log-access
+   compromise could reconstruct (request timing correlated to a
+   specific user).
+2. `info`/`err` messages from `passport-jwt` (e.g. "jwt expired",
+   "invalid signature") are useful for debugging but are the same class
+   of internal detail already kept out of the HTTP response body — kept
+   out of logs too, for consistency, since nothing about this task
+   required them.
+3. TDD (per CLAUDE.md's rule for auth-guard changes): the failing tests
+   in `jwt-auth.guard.spec.ts` were written first, asserting
+   `toHaveBeenCalledWith('Auth success')` / `('Auth failed')` with
+   `toHaveBeenCalledTimes(1)` — this pins the "exact string, nothing
+   else" contract so a future edit that adds an interpolated value
+   would fail the suite, not just fail a manual review.
+
+**Verification method**: Unit tests (`jwt-auth.guard.spec.ts`, 3 cases:
+success, no-user failure, thrown-error failure) plus the full existing
+e2e suite (`auth.e2e-spec.ts`, `me.e2e-spec.ts`) re-run to confirm no
+regression in accept/reject behavior. Reviewed via the
+security-reviewer checklist — no CRITICAL/FAIL findings, log-content
+check confirmed line-by-line.
