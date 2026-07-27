@@ -92,3 +92,6 @@ Tech stack (mandatory, do not substitute):
 - Do not push automatically — I decide when to push.
 - Never commit .env, .env.local, real JWTs, or any credential value —
   even inside transcripts or documentation. Redact before committing.
+- Before committing anything in /transcripts/, scan it for JWTs,
+  code_verifier/code_challenge values, authorization codes, and .env
+  contents — report findings and redact before staging.

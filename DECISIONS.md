@@ -396,3 +396,42 @@ verbatim), then passed again once restored. Unit tests for
 message `BadRequestException` passthrough, generic `Error` → sanitized
 `500`) cover the filter directly. Full suite: 47 e2e + 8 unit tests
 passing, clean build.
+
+---
+
+## Decision: Redacting an already-pushed dev DATABASE_URL rather than rewriting history
+
+**Context**: `transcripts/session-2-backend-task-1-3.md` (already
+committed and pushed) contained the local dev `DATABASE_URL`
+(`postgresql://dev:dev_password@localhost:5432/bookmark_manager`) in
+plaintext, captured verbatim from a terminal transcript of writing
+`backend/.env.example`.
+
+**Decision**: Redact the credential portion in place
+(`postgresql://[REDACTED]@localhost:5432/bookmark_manager`) in a new
+commit, rather than rewriting git history (`git filter-repo`/
+`rebase`+force-push) to remove it retroactively.
+
+**Reasoning**: This is the same value already present, unredacted, in
+`docker-compose.yml` (`POSTGRES_PASSWORD: dev_password`,
+`DATABASE_URL: postgresql://dev:dev_password@postgres:5432/...`) —
+and the security-reviewer checklist already assessed that exact value
+in `docker-compose.yml` as an acceptable risk ("`dev_password`
+hardcoded in plaintext — fine for a local-only dev compose file", per
+`transcripts/session-1-phase0-setup.md`). It is a placeholder
+`dev`/`dev_password` pair for a container that only ever binds to
+`localhost`, not a real credential, not reachable outside the local
+Docker network, and not something rotating or revoking would
+meaningfully protect. Rewriting already-pushed history to scrub a
+non-sensitive placeholder would cost more (force-push, coordination,
+rewritten commit hashes) than it protects against. Real credentials
+(Auth0 client secrets, actual JWTs, `.env`/`.env.local` contents)
+remain a hard "never commit, redact before staging" rule — this
+decision applies specifically to this already-assessed, non-sensitive
+placeholder value, not a general exception.
+
+**Outcome**: Redacted in place going forward; `CLAUDE.md`'s Git
+workflow section now requires scanning `/transcripts/` content for
+JWTs, `code_verifier`/`code_challenge` values, authorization codes,
+and `.env` contents before staging, to catch this category before it
+reaches a commit next time.
