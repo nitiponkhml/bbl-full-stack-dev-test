@@ -65,6 +65,33 @@ describe('Bookmarks — loading', () => {
     expect(apiClientMock.get).toHaveBeenCalledWith('/bookmarks');
   });
 
+  it('shows the bookmark notes in the list when present', async () => {
+    apiClientMock.get.mockImplementation((path: string) =>
+      path.startsWith('/collections')
+        ? Promise.resolve([])
+        : Promise.resolve([bookmark({ notes: 'Read this later' })]),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText('Read this later')).toBeInTheDocument(),
+    );
+  });
+
+  it('does not render a notes line when notes is null', async () => {
+    apiClientMock.get.mockImplementation((path: string) =>
+      path.startsWith('/collections')
+        ? Promise.resolve([])
+        : Promise.resolve([bookmark({ notes: null })]),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText('Example')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('bookmark-notes')).not.toBeInTheDocument();
+  });
+
   it('shows an empty state when there are no bookmarks', async () => {
     renderPage();
     await waitFor(() =>

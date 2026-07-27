@@ -97,7 +97,11 @@ export function AppShell(): ReactElement {
                   </Typography>
                 )}
                 {userInfo?.email && (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block' }}
+                  >
                     {userInfo.email}
                   </Typography>
                 )}

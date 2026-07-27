@@ -171,10 +171,12 @@ export function Bookmarks(): ReactElement {
         <Typography color="text.secondary">No bookmarks yet.</Typography>
       )}
 
-      <List>
+      <List disablePadding>
         {bookmarks.map((bookmark) => (
           <ListItem
             key={bookmark.id}
+            divider
+            sx={{ py: 1.5 }}
             secondaryAction={
               <>
                 <IconButton
@@ -193,15 +195,36 @@ export function Bookmarks(): ReactElement {
             }
           >
             <ListItemText
-              primary={bookmark.title}
-              secondary={
-                <MuiLink
-                  href={bookmark.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {bookmark.url}
-                </MuiLink>
+              disableTypography
+              primary={
+                <Box>
+                  <MuiLink
+                    href={bookmark.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block' }}
+                  >
+                    {bookmark.url}
+                  </MuiLink>
+                  <Typography
+                    variant="subtitle1"
+                    sx={{ fontWeight: 600, lineHeight: 1.4 }}
+                  >
+                    {bookmark.title}
+                  </Typography>
+                  {bookmark.notes && (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      data-testid="bookmark-notes"
+                      sx={{ mt: 0.5 }}
+                    >
+                      {bookmark.notes}
+                    </Typography>
+                  )}
+                </Box>
               }
             />
           </ListItem>

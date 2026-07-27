@@ -117,10 +117,12 @@ export function Collections(): ReactElement {
         <Typography color="text.secondary">No collections yet.</Typography>
       )}
 
-      <List>
+      <List disablePadding>
         {collections.map((collection) => (
           <ListItem
             key={collection.id}
+            divider
+            sx={{ py: 1.5 }}
             secondaryAction={
               <>
                 <IconButton
