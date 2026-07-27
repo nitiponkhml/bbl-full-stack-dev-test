@@ -366,8 +366,7 @@
      … +1 line (ctrl+o to expand)
 ● Write(backend\.env.example)
   ⎿  Wrote 4 lines to backend\.env.example
-      1 DATABASE_URL=postgresql://dev:dev_password@localhost:5432/bookmar
-        k_manager
+      1 DATABASE_URL=postgresql://[REDACTED]@localhost:5432/bookmark_manager
       2 AUTH0_DOMAIN=dev-yg.us.auth0.com
       3 AUTH0_AUDIENCE=https://bbl-candidate-test-api
       4 PORT=3001
