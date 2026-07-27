@@ -39,8 +39,8 @@ Tech stack (mandatory, do not substitute):
   database queries, run the security-reviewer subagent
   (.claude/agents/security-reviewer.md) and show me the results.
 - Use the `/commit` command (see .claude/commands/commit.md) for all commits.
-- After work is done, state my confidence level (e.g. High/Medium/Low,
-  or a %) and why — call out what's actually verified (tests passing,
+- After work is done, state my confidence level as a percentage (e.g.
+  90%) and why — call out what's actually verified (tests passing,
   manual checks) vs. what's assumed or untested, so confidence isn't
   just a feeling.
 
