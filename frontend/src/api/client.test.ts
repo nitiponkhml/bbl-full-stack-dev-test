@@ -133,15 +133,13 @@ describe('apiClient.delete', () => {
 
 describe('error handling', () => {
   it('throws ApiError using the backend error shape {statusCode, message, error}', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse(404, {
-          statusCode: 404,
-          message: 'Collection not found',
-          error: 'Not Found',
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(404, {
+        statusCode: 404,
+        message: 'Collection not found',
+        error: 'Not Found',
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(apiClient.get('/collections/foreign-id')).rejects.toThrow(
@@ -183,15 +181,13 @@ describe('error handling', () => {
   it('on a 401, clears the stored access token and redirects to / (session expired)', async () => {
     setAccessToken('a-now-invalid-token');
     const assignSpy = stubLocationAssign();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse(401, {
-          statusCode: 401,
-          message: 'Unauthorized',
-          error: 'Unauthorized',
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(401, {
+        statusCode: 401,
+        message: 'Unauthorized',
+        error: 'Unauthorized',
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(apiClient.get('/collections')).rejects.toThrow(ApiError);
