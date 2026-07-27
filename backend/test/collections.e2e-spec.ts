@@ -137,6 +137,23 @@ describe('/collections (e2e)', () => {
       expect(res.body).toHaveLength(1);
       expect(res.body[0].name).toBe('Cooking Recipes');
     });
+
+    it("excludes another user's collections even when ?name= matches them", async () => {
+      await prisma.collection.createMany({
+        data: [
+          { name: 'Cooking Recipes', ownerId: OWNER_A },
+          { name: 'Cooking Recipes B', ownerId: OWNER_B },
+        ],
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/collections?name=cooking')
+        .set('Authorization', `Bearer ${tokenFor(OWNER_A)}`)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0]).toMatchObject({ name: 'Cooking Recipes', ownerId: OWNER_A });
+    });
   });
 
   describe('GET /collections/:id', () => {

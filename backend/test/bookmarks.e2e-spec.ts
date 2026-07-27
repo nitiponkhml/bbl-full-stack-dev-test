@@ -201,6 +201,27 @@ describe('/bookmarks (e2e)', () => {
       expect(res.body).toHaveLength(1);
       expect(res.body[0].url).toBe('https://in.example.com');
     });
+
+    it("returns an empty list (not another user's bookmarks, not an error) when ?collectionId= points at another user's collection", async () => {
+      const foreignCollection = await prisma.collection.create({
+        data: { name: "B's collection", ownerId: OWNER_B },
+      });
+      await prisma.bookmark.create({
+        data: {
+          url: 'https://secret.example.com',
+          title: "B's bookmark",
+          ownerId: OWNER_B,
+          collectionId: foreignCollection.id,
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get(`/bookmarks?collectionId=${foreignCollection.id}`)
+        .set('Authorization', `Bearer ${tokenFor(OWNER_A)}`)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
   });
 
   describe('GET /bookmarks/:id', () => {
