@@ -30,6 +30,29 @@ Tech stack (mandatory, do not substitute):
 - Follow TDD for security-sensitive logic (auth guard, ownership checks):
   write a failing test first, then implement.
 - Never run the dev server yourself — I will run it and report back.
+- Backend must have CORS enabled for the frontend's origin
+  (http://localhost:3000, or wherever the Vite dev server runs) before
+  frontend integration testing begins.
+
+## Frontend rules
+- ID Token (decoded client-side) is used only for displaying user
+  info in the UI (name, email, picture) — never sent to the backend.
+- Access Token is the only credential sent to the backend, as
+  `Authorization: Bearer <token>` — matches the backend's Bearer
+  Token Type decision in DECISIONS.md.
+- Token storage: `sessionStorage` — see DECISIONS.md ("Token storage
+  location") for the reasoning and known trade-off (readable by
+  page scripts, not XSS-proof; chosen over an httpOnly cookie given
+  time constraints).
+- Routing: `/` is a landing/decision point (redirects to /collections
+  if a valid token exists, otherwise shows a "Sign in" button) —
+  not counted as a third required page. `/callback` handles the
+  Authorization Code + PKCE exchange. `/collections` and `/bookmarks`
+  are the two required pages (§3.2), both wrapped in route protection
+  that redirects unauthenticated access back to `/`.
+- Logout: clears stored token(s) client-side and redirects to Auth0's
+  logout endpoint (per the tenant's configured Logout URL:
+  http://localhost:3000) to also end the Auth0 session.
 
 ## Finishing up
 - After implementing a feature, summarize what changed and wait for my

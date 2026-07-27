@@ -180,15 +180,28 @@ model (see "Bearer Token Type" above) is meant to work.
 
 ---
 
-## Decision: Token storage location on the frontend — NOT YET DECIDED
+## Decision: Token storage location on the frontend
 
-**Context**: The Access Token needs to persist somewhere between page
-loads so that a returning user with a still-valid token isn't forced
-to log in again (see landing page decision above). Options include
-in-memory (React state only), `localStorage`, or `sessionStorage`,
-each with different trade-offs between persistence and XSS exposure.
+**Context**: The Access Token (and ID Token, used for UI display) need
+to persist somewhere between page loads so a returning user with a
+still-valid token isn't forced to log in again. Options considered:
+in-memory (React state only), `localStorage`, `sessionStorage`, or an
+httpOnly cookie set by the backend.
 
-Placeholder — to be resolved during frontend implementation.
+**Decision**: `sessionStorage`.
+
+**Reasoning**: An httpOnly cookie is the strongest option against XSS
+(JavaScript — including malicious injected script — cannot read the
+token at all), but it requires the backend to perform the code
+exchange and set the cookie itself, meaningfully changing the flow
+already implemented (frontend currently exchanges the code directly
+with Auth0). Given the time remaining, `sessionStorage` was chosen as
+the practical trade-off: it persists across page reloads within a tab
+(avoiding a re-login on every navigation) while clearing on tab close,
+which is a smaller exposure window than `localStorage`. This is a
+known trade-off, not an oversight — `sessionStorage` (like
+`localStorage`) is still readable by any script running on the page,
+so it does not protect against XSS the way an httpOnly cookie would.
 
 ---
 
