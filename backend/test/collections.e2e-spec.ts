@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { configureApp } from '../src/setup-app';
 
 const AUTH0_DOMAIN = 'dev-yg.us.auth0.com';
 const AUDIENCE = 'https://bbl-candidate-test-api';
@@ -48,6 +49,7 @@ describe('/collections (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app);
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -77,6 +79,27 @@ describe('/collections (e2e)', () => {
 
       expect(res.body).toMatchObject({ name: 'Reading', ownerId: OWNER_A });
       expect(res.body.id).toEqual(expect.any(String));
+    });
+
+    it('returns 400 when name is missing', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/collections')
+        .set('Authorization', `Bearer ${tokenFor(OWNER_A)}`)
+        .send({})
+        .expect(400);
+
+      expect(res.body).toMatchObject({ statusCode: 400, error: 'Bad Request' });
+      expect(Array.isArray(res.body.message)).toBe(true);
+    });
+
+    it('returns 400 when the body contains an unrecognized field (e.g. a spoofed ownerId)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/collections')
+        .set('Authorization', `Bearer ${tokenFor(OWNER_A)}`)
+        .send({ name: 'Reading', ownerId: 'auth0|spoofed' })
+        .expect(400);
+
+      expect(res.body).toMatchObject({ statusCode: 400, error: 'Bad Request' });
     });
   });
 

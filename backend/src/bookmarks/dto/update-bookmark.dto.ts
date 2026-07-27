@@ -2,7 +2,7 @@ import { IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class UpdateBookmarkDto {
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_protocol: true })
   @IsNotEmpty()
   url?: string;
 

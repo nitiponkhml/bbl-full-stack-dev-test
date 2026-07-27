@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { configureApp } from '../src/setup-app';
 
 const AUTH0_DOMAIN = 'dev-yg.us.auth0.com';
 const AUDIENCE = 'https://bbl-candidate-test-api';
@@ -48,6 +49,7 @@ describe('/bookmarks (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app);
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -85,6 +87,37 @@ describe('/bookmarks (e2e)', () => {
         collectionId: null,
       });
       expect(res.body.id).toEqual(expect.any(String));
+    });
+
+    it('returns 400 when url and title are missing', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/bookmarks')
+        .set('Authorization', `Bearer ${tokenFor(OWNER_A)}`)
+        .send({})
+        .expect(400);
+
+      expect(res.body).toMatchObject({ statusCode: 400, error: 'Bad Request' });
+      expect(Array.isArray(res.body.message)).toBe(true);
+    });
+
+    it('returns 400 for a malformed url (no protocol)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/bookmarks')
+        .set('Authorization', `Bearer ${tokenFor(OWNER_A)}`)
+        .send({ url: 'example.com', title: 'Example' })
+        .expect(400);
+
+      expect(res.body).toMatchObject({ statusCode: 400, error: 'Bad Request' });
+    });
+
+    it('returns 400 when the body contains an unrecognized field (e.g. a spoofed ownerId)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/bookmarks')
+        .set('Authorization', `Bearer ${tokenFor(OWNER_A)}`)
+        .send({ url: 'https://example.com', title: 'Example', ownerId: 'auth0|spoofed' })
+        .expect(400);
+
+      expect(res.body).toMatchObject({ statusCode: 400, error: 'Bad Request' });
     });
 
     it('creates a bookmark inside a collection owned by the caller', async () => {

@@ -5,6 +5,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/setup-app';
 
 const AUTH0_DOMAIN = 'dev-yg.us.auth0.com';
 const AUDIENCE = 'https://bbl-candidate-test-api';
@@ -33,6 +34,7 @@ describe('GET /me (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 
