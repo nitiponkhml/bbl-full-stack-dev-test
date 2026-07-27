@@ -102,7 +102,20 @@ of other users' data, per the invariant in §3).
 
 ## Collection sharing (§3.3)
 
-See DECISIONS.md — not yet resolved.
+**Not implemented.** §3.3 phrases sharing as a soft desire ("a user
+may want to..."), not a numbered requirement, and it sits directly
+alongside this project's core invariant (§3: a user must never see,
+edit, or learn of the existence of another user's data). Any sharing
+mechanism is a controlled exception to that invariant, so it was
+deliberately left out rather than partially built under time pressure.
+
+No `Collection`/`Bookmark` route or query in this document has a
+cross-user read/write path — the privacy invariant above is absolute,
+by construction, not by a feature flag.
+
+Full reasoning and the two candidate designs for a future pass
+(named-user grants vs. an identity-blind share-link token) are in
+`DECISIONS.md` — "Decision: Collection sharing (§3.3)".
 
 ---
 
