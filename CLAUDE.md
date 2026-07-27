@@ -35,6 +35,10 @@ Tech stack (mandatory, do not substitute):
   frontend integration testing begins.
 
 ## Frontend rules
+- No custom login form: the login UI is Auth0's hosted Universal
+  Login page, reached by redirecting to /authorize. This frontend
+  only needs a "Sign in" trigger and a /callback handler — never
+  build a username/password form.
 - ID Token (decoded client-side) is used only for displaying user
   info in the UI (name, email, picture) — never sent to the backend.
 - Access Token is the only credential sent to the backend, as
